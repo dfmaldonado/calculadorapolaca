@@ -2,6 +2,7 @@
 using Calculator.Database;
 using Calculator.Database.Entities;
 using Microsoft.AspNetCore.Mvc;
+using calculadora.Constants;
 
 namespace Calculator.Controllers
 {
@@ -18,18 +19,24 @@ namespace Calculator.Controllers
             _dbContext = dbContext;
         }
 
-        // Endpoint POST: Calcula el resultado de una expresión RPN y guarda la operación.
         [HttpPost]
         public IActionResult Post([FromBody] string expression)
         {
-            if (string.IsNullOrWhiteSpace(expression))
-            {
-                return BadRequest(new { Error = "La expresión RPN no puede estar vacía." });
-            }
-
             try
             {
+                if (!_service.ValidateExpression(expression))
+                {
+                    return StatusCode(HttpStatusCode.BAD_REQUEST, new
+                    {
+                        StatusCode = HttpStatusCode.BAD_REQUEST,
+                        Status = false,
+                        Message = "La expresión RPN no es válida.",
+                        Data = new object ()
+                    });
+                }
+
                 var result = _service.EvaluateRPN(expression);
+
                 var operation = new CalculatorEntity
                 {
                     Expression = expression,
@@ -40,30 +47,53 @@ namespace Calculator.Controllers
                 _dbContext.Calculations.Add(operation);
                 _dbContext.SaveChanges();
 
-                return Ok(new { Expression = expression, Result = result });
+                return StatusCode(HttpStatusCode.Ok, new
+                {
+                    StatusCode = HttpStatusCode.Ok,
+                    Status = true,
+                    Message = "Operación realizada correctamente.",
+                    Data = new { Expression = expression, Result = result }
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { Error = ex.Message });
+                return StatusCode(HttpStatusCode.INTERNAL_SERVER_ERROR, new
+                {
+                    StatusCode = HttpStatusCode.INTERNAL_SERVER_ERROR,
+                    Status = false,
+                    Message = "Ocurrió un error al procesar la operación.",
+                    Data = new { Detail = ex.Message }
+                });
             }
         }
 
-        // Endpoint GET: Recupera el historial completo de operaciones.
         [HttpGet("history")]
         public IActionResult GetHistory()
         {
             try
             {
                 var operations = _dbContext.Calculations.ToList();
-                return Ok(operations);
+
+                return StatusCode(HttpStatusCode.Ok, new
+                {
+                    StatusCode = HttpStatusCode.Ok,
+                    Status = true,
+                    Message = "Historial obtenido correctamente.",
+                    Data = operations
+                });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { Error = "Ocurrió un error al recuperar el historial.", Detail = ex.Message });
+                return StatusCode(HttpStatusCode.INTERNAL_SERVER_ERROR, new
+                {
+                    StatusCode = HttpStatusCode.INTERNAL_SERVER_ERROR,
+                    Status = false,
+                    Message = "Ocurrió un error al recuperar el historial.",
+                    Data = new { Detail = ex.Message }
+                });
             }
         }
 
-        // Endpoint GET: Recupera los detalles de una operación específica usando su ID.
         [HttpGet("history/{id}")]
         public IActionResult GetOperationById(int id)
         {
@@ -73,14 +103,32 @@ namespace Calculator.Controllers
 
                 if (operation == null)
                 {
-                    return NotFound(new { Error = $"No se encontró la operación con ID {id}." });
+                    return StatusCode(HttpStatusCode.NOT_FOUND, new
+                    {
+                        StatusCode = HttpStatusCode.NOT_FOUND,
+                        Status = false,
+                        Message = $"No se encontró la operación con ID {id}.",
+                        Data = new object()
+                    });
                 }
 
-                return Ok(operation);
+                return StatusCode(HttpStatusCode.Ok, new
+                {
+                    StatusCode = HttpStatusCode.Ok,
+                    Status = true,
+                    Message = "Datos obtenidos correctamente.",
+                    Data = operation
+                });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { Error = "Ocurrió un error al recuperar la operación.", Detail = ex.Message });
+                return StatusCode(HttpStatusCode.INTERNAL_SERVER_ERROR, new
+                {
+                    StatusCode = HttpStatusCode.INTERNAL_SERVER_ERROR,
+                    Status = false,
+                    Message = "Ocurrió un error al recuperar la operación.",
+                    Data = new { Detail = ex.Message }
+                });
             }
         }
     }
